@@ -1,6 +1,6 @@
 import { Auth } from "./component/Auth";
-import { VideoRoomJoinUI } from "./component/Video";
 import { useAuth } from "./context/AuthContext";
+import { VideoRoomJoinUI } from "./component/Video";
 
 function App() {
   const { user } = useAuth();
