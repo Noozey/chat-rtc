@@ -1,21 +1,37 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import AgoraRTC from "agora-rtc-sdk-ng";
+import { useAuth } from "../context/AuthContext";
 
 export const VideoRoomJoinUI = () => {
   const [joined, setJoined] = useState(false);
+  const { signUserOut } = useAuth();
 
   return (
     <>
-      {!joined && (
+      <div className=" bg-slate-700">
         <button
-          onClick={() => {
-            setJoined(true);
-          }}
+          onClick={signUserOut}
+          className="w-full h-fit max-w-[100px] py-2 border border-gray-500 rounded-3xl bg-gray-300 hover:bg-gray-400 transition-all"
         >
-          JoinRoom
+          Sign Out
         </button>
-      )}
-      {joined && <VideoRoom />}
+        <div className="w-screen h-screen flex flex-col items-center justify-center">
+          {!joined && (
+            <div className="flex justify-center items-center flex-col gap-4">
+              <h1 className="text-5xl">Join Chat Room</h1>
+              <button
+                onClick={() => {
+                  setJoined(true);
+                }}
+                className="w-full h-fit max-w-[200px] py-2 border border-gray-500 rounded-3xl bg-gray-300 hover:bg-gray-400 transition-all"
+              >
+                JoinRoom
+              </button>
+            </div>
+          )}
+          {joined && <VideoRoom />}
+        </div>
+      </div>
     </>
   );
 };
@@ -31,9 +47,18 @@ const client = AgoraRTC.createClient({
 
 const VideoRoom = () => {
   const [users, setUsers] = useState([]);
-  console.log(users);
-  const handleUserJoined = () => {};
-  const handleUserLeft = () => {};
+  const handleUserJoined = async (user, mediaType) => {
+    await client.subscribe(user, mediaType);
+    if (mediaType === "video") {
+      setUsers((prevUser) => [...prevUser, user]);
+    }
+    if (mediaType === "audio") {
+      user.audioTrack.play;
+    }
+  };
+  const handleUserLeft = (user) => {
+    setUsers((prevUsers) => prevUsers.filter((u) => u.uid !== user.uid));
+  };
 
   useEffect(() => {
     client.on("user-published", handleUserJoined);
@@ -41,29 +66,48 @@ const VideoRoom = () => {
     client
       .join(App_ID, CHANNEL, TOKEN, null)
       .then((uid) => {
-        Promise.all(AgoraRTC.createMicrophoneAndCameraTracks(), uid);
+        return Promise.all([AgoraRTC.createMicrophoneAndCameraTracks(), uid]);
       })
       .then(([tracks, uid]) => {
         const [audioTrack, videoTrack] = tracks;
-        setUsers((prevUser) => {
-          [
-            ...prevUser,
-            {
-              uid,
-              videoTrack,
-            },
-          ];
-        });
+        setUsers((prevUser) => [
+          ...prevUser,
+          {
+            uid,
+            videoTrack,
+            audioTrack,
+          },
+        ]);
         client.publish(tracks);
       });
+
+    return () => {
+      client.off("user-published", handleUserJoined);
+      client.off("user-left", handleUserLeft);
+      client.unpublish(tracks).then(() => client.leave());
+    };
   }, []);
 
   return (
-    <div>
+    <div className="flex">
       VideoRoom
-      {users.map((user) => {
-        <div key={user.uid}>{user.uid}</div>;
-      })}
+      {users.map((user) => (
+        <VideoPlayer key={user.uid} user={user} />
+      ))}
+    </div>
+  );
+};
+
+const VideoPlayer = ({ user }) => {
+  const ref = useRef();
+
+  useEffect(() => {
+    user.videoTrack.play(ref.current);
+  }, [user.videoTrack]);
+  return (
+    <div>
+      {user.uid}
+      <div ref={ref} className="w-96 h-96"></div>
     </div>
   );
 };
